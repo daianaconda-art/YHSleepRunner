@@ -41,6 +41,31 @@ public sealed class MainWindowTests
     }
 
     [Fact]
+    public void MainWindow_keeps_app_title_compact_inside_the_header()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+
+            var title = form.Controls.OfType<Label>().Single(label => label.Text == "YHSleepRunner");
+            Size textSize = TextRenderer.MeasureText(
+                title.Text,
+                title.Font,
+                new Size(int.MaxValue, int.MaxValue),
+                TextFormatFlags.NoPadding);
+
+            Assert.True(
+                title.Font.SizeInPoints <= 14F,
+                $"Title font was {title.Font.SizeInPoints}pt.");
+            Assert.True(
+                textSize.Height + 8 <= title.Height,
+                $"Title text height was {textSize.Height}px inside a {title.Height}px label.");
+        });
+    }
+
+    [Fact]
     public void MainWindow_uses_roomier_resizable_shell()
     {
         WinFormsTestHost.Run(() =>
@@ -182,6 +207,41 @@ public sealed class MainWindowTests
     }
 
     [Fact]
+    public void MainWindow_global_alt_q_hotkey_stops_running_workflow_without_focus()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+            controller.SetState(AutomationWorkflowState.Running);
+
+            InvokeWndProc(form, Message.Create(IntPtr.Zero, 0x0312, 0x5151, IntPtr.Zero));
+
+            Assert.Equal(1, controller.StopCount);
+            Assert.Equal(AutomationWorkflowState.Stopped, controller.State);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_low_level_alt_q_hook_stops_running_workflow_when_hotkey_is_unavailable()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+            controller.SetState(AutomationWorkflowState.Running);
+
+            bool handled = InvokeLowLevelKeyboardShortcut(form, message: 0x0104, key: Keys.Q, flags: 0x20);
+
+            Assert.True(handled);
+            Assert.Equal(1, controller.StopCount);
+            Assert.Equal(AutomationWorkflowState.Stopped, controller.State);
+        });
+    }
+
+    [Fact]
     public void MainWindow_lays_out_future_workflow_buttons_without_overlap()
     {
         WinFormsTestHost.Run(() =>
@@ -262,5 +322,27 @@ public sealed class MainWindowTests
 
         object?[] args = [new Message(), keyData];
         return (bool)processCmdKey.Invoke(form, args)!;
+    }
+
+    private static void InvokeWndProc(Form form, Message message)
+    {
+        MethodInfo wndProc = typeof(Form).GetMethod(
+            "WndProc",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("WndProc not found.");
+
+        object?[] args = [message];
+        wndProc.Invoke(form, args);
+    }
+
+    private static bool InvokeLowLevelKeyboardShortcut(Form form, int message, Keys key, uint flags)
+    {
+        MethodInfo handler = typeof(MainWindow).GetMethod(
+            "HandleLowLevelKeyboardMessage",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("HandleLowLevelKeyboardMessage not found.");
+
+        object?[] args = [message, (int)key, flags];
+        return (bool)handler.Invoke(form, args)!;
     }
 }

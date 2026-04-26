@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using YihuanRunner.Forms.Controls;
 using YihuanRunner.Workflows;
@@ -16,6 +17,15 @@ public sealed class MainWindow : Form
     private const int ButtonGap = 12;
     private const int SettingsTop = 92;
     private const int ActionPanelTop = 156;
+    private const int WmHotKey = 0x0312;
+    private const int WmKeyDown = 0x0100;
+    private const int WmSysKeyDown = 0x0104;
+    private const int WhKeyboardLl = 13;
+    private const int StopHotKeyId = 0x5151;
+    private const uint ModAlt = 0x0001;
+    private const uint ModNoRepeat = 0x4000;
+    private const uint LowLevelKeyboardAltDown = 0x20;
+    private const uint VirtualKeyQ = 0x51;
 
     private readonly IReadOnlyList<AutomationWorkflowDefinition> _workflows;
     private readonly IAutomationWorkflowController _controller;
@@ -26,6 +36,9 @@ public sealed class MainWindow : Form
     private readonly Panel _actionPanel;
     private readonly List<RoundedButton> _workflowButtons = [];
     private readonly RoundedButton _stopButton;
+    private bool _stopHotKeyRegistered;
+    private IntPtr _stopShortcutHook;
+    private LowLevelKeyboardProc? _stopShortcutHookProc;
 
     public MainWindow()
         : this(
@@ -57,12 +70,12 @@ public sealed class MainWindow : Form
         {
             AutoSize = false,
             Text = "YHSleepRunner",
-            Font = RunnerTheme.BoldFont(17F),
+            Font = RunnerTheme.BoldFont(12F),
             ForeColor = RunnerTheme.TextPrimary,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleLeft,
-            Location = new Point(Pad, 18),
-            Size = new Size(ClientSize.Width - Pad * 2, 34),
+            Location = new Point(Pad, 14),
+            Size = new Size(ClientSize.Width - Pad * 2, 40),
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
 
@@ -182,6 +195,18 @@ public sealed class MainWindow : Form
         _actionPanel.Invalidate();
     }
 
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        RegisterStopHotKey();
+    }
+
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        UnregisterStopHotKey();
+        base.OnHandleDestroyed(e);
+    }
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         _controller.Dispose();
@@ -192,13 +217,97 @@ public sealed class MainWindow : Form
     {
         if (keyData == (Keys.Alt | Keys.Q))
         {
-            if (_controller.State == AutomationWorkflowState.Running)
-                _ = StopWorkflowAsync();
-
+            RequestStopFromShortcut();
             return true;
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WmHotKey && m.WParam.ToInt32() == StopHotKeyId)
+        {
+            RequestStopFromShortcut();
+            return;
+        }
+
+        base.WndProc(ref m);
+    }
+
+    private void RequestStopFromShortcut()
+    {
+        if (_controller.State == AutomationWorkflowState.Running)
+            _ = StopWorkflowAsync();
+    }
+
+    private void RegisterStopHotKey()
+    {
+        if (_stopHotKeyRegistered || _stopShortcutHook != IntPtr.Zero || !IsHandleCreated)
+            return;
+
+        if (RegisterHotKey(Handle, StopHotKeyId, ModAlt | ModNoRepeat, VirtualKeyQ))
+        {
+            _stopHotKeyRegistered = true;
+            return;
+        }
+
+        InstallStopShortcutHook();
+    }
+
+    private void UnregisterStopHotKey()
+    {
+        if (_stopHotKeyRegistered)
+        {
+            UnregisterHotKey(Handle, StopHotKeyId);
+            _stopHotKeyRegistered = false;
+        }
+
+        if (_stopShortcutHook != IntPtr.Zero)
+        {
+            UnhookWindowsHookEx(_stopShortcutHook);
+            _stopShortcutHook = IntPtr.Zero;
+            _stopShortcutHookProc = null;
+        }
+    }
+
+    private void InstallStopShortcutHook()
+    {
+        _stopShortcutHookProc = StopShortcutHookProc;
+        _stopShortcutHook = SetWindowsHookEx(
+            WhKeyboardLl,
+            _stopShortcutHookProc,
+            GetModuleHandle(null),
+            0);
+
+        if (_stopShortcutHook == IntPtr.Zero)
+            _stopShortcutHookProc = null;
+    }
+
+    private IntPtr StopShortcutHookProc(int code, IntPtr wParam, IntPtr lParam)
+    {
+        if (code >= 0)
+        {
+            var input = Marshal.PtrToStructure<LowLevelKeyboardInput>(lParam);
+            if (HandleLowLevelKeyboardMessage(wParam.ToInt32(), (int)input.VirtualKeyCode, input.Flags))
+                return 1;
+        }
+
+        return CallNextHookEx(_stopShortcutHook, code, wParam, lParam);
+    }
+
+    private bool HandleLowLevelKeyboardMessage(int message, int virtualKey, uint flags)
+    {
+        bool isKeyDown = message is WmKeyDown or WmSysKeyDown;
+        bool isAltDown = (flags & LowLevelKeyboardAltDown) != 0;
+        if (!isKeyDown || virtualKey != VirtualKeyQ || !isAltDown)
+            return false;
+
+        if (_controller.State != AutomationWorkflowState.Running)
+            return false;
+
+        RequestStopFromShortcut();
+        return true;
     }
 
     private void OnWorkflowButtonClick(object? sender, EventArgs eventArgs)
@@ -311,6 +420,40 @@ public sealed class MainWindow : Form
 
         int rows = workflowCount + 1;
         return Pad + rows * ButtonHeight + (rows - 1) * ButtonGap;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWindowsHookEx(
+        int idHook,
+        LowLevelKeyboardProc lpfn,
+        IntPtr hMod,
+        uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LowLevelKeyboardInput
+    {
+        public uint VirtualKeyCode;
+        public uint ScanCode;
+        public uint Flags;
+        public uint Time;
+        public IntPtr ExtraInfo;
     }
 }
 
