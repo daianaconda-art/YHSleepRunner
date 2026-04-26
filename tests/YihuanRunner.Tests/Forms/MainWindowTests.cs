@@ -1,0 +1,129 @@
+using System.Drawing;
+using System.Windows.Forms;
+using YihuanRunner.Forms;
+using YihuanRunner.Workflows;
+
+namespace YihuanRunner.Tests.Forms;
+
+public sealed class MainWindowTests
+{
+    [Fact]
+    public void MainWindow_contains_only_start_and_stop_buttons()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+
+            var buttons = form.Controls.Find("ActionButton", searchAllChildren: true).OfType<Button>().ToList();
+
+            Assert.Equal(2, buttons.Count);
+            Assert.Contains(buttons, button => button.Text == "店长特供2-8");
+            Assert.Contains(buttons, button => button.Text == "停止");
+        });
+    }
+
+    [Fact]
+    public void MainWindow_uses_warm_theme_colors()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+
+            Assert.Equal(RunnerTheme.Bg.ToArgb(), form.BackColor.ToArgb());
+            Assert.Equal(RunnerTheme.TextPrimary.ToArgb(), form.ForeColor.ToArgb());
+        });
+    }
+
+    [Fact]
+    public void MainWindow_disables_stop_until_a_workflow_is_running()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+
+            var stop = form.Controls.Find("ActionButton", searchAllChildren: true)
+                .OfType<Button>()
+                .Single(button => button.Text == "停止");
+
+            Assert.False(stop.Enabled);
+
+            controller.SetState(AutomationWorkflowState.Running);
+
+            Assert.True(stop.Enabled);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_lays_out_future_workflow_buttons_without_overlap()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow(
+                [
+                    SampleWorkflow(),
+                    SampleWorkflow() with { Id = "second-flow", DisplayName = "备用流程" },
+                ],
+                controller);
+            form.CreateControl();
+
+            var buttons = form.Controls.Find("ActionButton", searchAllChildren: true)
+                .OfType<Button>()
+                .Where(button => button.Text != "停止")
+                .OrderBy(button => button.Top)
+                .ToList();
+
+            Assert.Equal(2, buttons.Count);
+            Assert.True(buttons[1].Top > buttons[0].Bottom);
+            Assert.All(buttons, button => Assert.True(button.Width > 250));
+        });
+    }
+
+    private static AutomationWorkflowDefinition SampleWorkflow() =>
+        new(
+            Id: "store-special-2-8",
+            DisplayName: "店长特供2-8",
+            FileName: "powershell",
+            Arguments: ["-ExecutionPolicy", "Bypass", "-File", @".\scripts\run-yihuan.ps1"],
+            WorkingDirectory: "C:\\repo");
+
+    private sealed class FakeAutomationWorkflowController : IAutomationWorkflowController
+    {
+        public event Action<AutomationWorkflowState>? StateChanged;
+        public event Action<string>? ActivityChanged;
+
+        public AutomationWorkflowState State { get; private set; } = AutomationWorkflowState.Idle;
+        public AutomationWorkflowDefinition? ActiveWorkflow { get; private set; }
+
+        public bool Start(AutomationWorkflowDefinition workflow)
+        {
+            ActiveWorkflow = workflow;
+            SetState(AutomationWorkflowState.Running);
+            ActivityChanged?.Invoke($"运行中: {workflow.DisplayName}");
+            return true;
+        }
+
+        public Task StopAsync()
+        {
+            ActiveWorkflow = null;
+            SetState(AutomationWorkflowState.Stopped);
+            return Task.CompletedTask;
+        }
+
+        public void SetState(AutomationWorkflowState state)
+        {
+            State = state;
+            StateChanged?.Invoke(state);
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+}
