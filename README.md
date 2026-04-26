@@ -15,6 +15,8 @@
 2. 下载 `YHSleepRunner-win-x64.zip`。
 3. 解压后运行 `YHSleepRunner.exe`。
 
+发布包是无控制台黑框版本；从界面启动流程时，后台 PowerShell 也会隐藏运行。
+
 打开界面：
 
 ```powershell
@@ -32,6 +34,8 @@ dotnet run --project .\src\YihuanRunner -- --ui
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\run-yihuan.ps1
 ```
+
+界面里的 `循环次数` 默认 `0`，表示一直循环。填入大于 `0` 的数字后，会按“领取成功”计数，达到次数自动停止。
 
 ## 命令行调试
 
@@ -51,6 +55,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-yihuan.ps1 -Once
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\run-yihuan.ps1
+```
+
+领取成功 3 次后自动停止：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run-yihuan.ps1 -Loops 3
 ```
 
 如果需要校准点击坐标：

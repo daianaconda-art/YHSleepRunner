@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows.Forms;
 using YihuanRunner.Forms.Controls;
 using YihuanRunner.Workflows;
@@ -7,17 +8,21 @@ namespace YihuanRunner.Forms;
 public sealed class MainWindow : Form
 {
     private const int DefaultClientWidth = 540;
-    private const int DefaultClientHeight = 240;
+    private const int DefaultClientHeight = 292;
     private const int MinimumWindowWidth = 460;
-    private const int MinimumWindowHeight = 220;
+    private const int MinimumWindowHeight = 270;
     private const int Pad = 24;
     private const int ButtonHeight = 54;
     private const int ButtonGap = 12;
+    private const int SettingsTop = 92;
+    private const int ActionPanelTop = 156;
 
     private readonly IReadOnlyList<AutomationWorkflowDefinition> _workflows;
     private readonly IAutomationWorkflowController _controller;
     private readonly Label _titleLabel;
     private readonly Label _statusLabel;
+    private readonly Label _loopCountLabel;
+    private readonly NumericUpDown _loopCountInput;
     private readonly Panel _actionPanel;
     private readonly List<RoundedButton> _workflowButtons = [];
     private readonly RoundedButton _stopButton;
@@ -73,10 +78,36 @@ public sealed class MainWindow : Form
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
 
+        _loopCountLabel = new Label
+        {
+            AutoSize = false,
+            Text = "循环次数",
+            Font = RunnerTheme.CaptionFont(),
+            ForeColor = RunnerTheme.TextSecondary,
+            BackColor = Color.Transparent,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Location = new Point(Pad, SettingsTop + 5),
+            Size = new Size(74, 32),
+        };
+
+        _loopCountInput = new NumericUpDown
+        {
+            Name = "LoopCountInput",
+            Minimum = 0,
+            Maximum = 999,
+            Value = 0,
+            Font = RunnerTheme.BoldFont(11.25F),
+            ForeColor = RunnerTheme.TextPrimary,
+            BackColor = RunnerTheme.Panel,
+            Location = new Point(Pad + 82, SettingsTop),
+            Size = new Size(96, 34),
+            TextAlign = HorizontalAlignment.Center,
+        };
+
         _actionPanel = new Panel
         {
             BackColor = RunnerTheme.Panel,
-            Location = new Point(Pad, 104),
+            Location = new Point(Pad, ActionPanelTop),
             Size = new Size(ClientSize.Width - Pad * 2, ComputePanelHeight(_workflows.Count)),
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
@@ -125,6 +156,8 @@ public sealed class MainWindow : Form
 
         Controls.Add(_titleLabel);
         Controls.Add(_statusLabel);
+        Controls.Add(_loopCountLabel);
+        Controls.Add(_loopCountInput);
         Controls.Add(_actionPanel);
 
         _controller.StateChanged += OnControllerStateChanged;
@@ -159,7 +192,7 @@ public sealed class MainWindow : Form
         if (sender is not RoundedButton { Tag: AutomationWorkflowDefinition workflow })
             return;
 
-        _ = _controller.Start(workflow);
+        _ = _controller.Start(ApplyLoopCount(workflow));
     }
 
     private async Task StopWorkflowAsync()
@@ -196,6 +229,7 @@ public sealed class MainWindow : Form
         foreach (RoundedButton button in _workflowButtons)
             button.Enabled = !running;
 
+        _loopCountInput.Enabled = !running;
         _stopButton.Enabled = state == AutomationWorkflowState.Running;
         _statusLabel.Text = state switch
         {
@@ -211,6 +245,20 @@ public sealed class MainWindow : Form
     {
         text = text.Trim();
         return text.Length <= 48 ? text : text[..48];
+    }
+
+    private AutomationWorkflowDefinition ApplyLoopCount(AutomationWorkflowDefinition workflow)
+    {
+        int loopCount = decimal.ToInt32(_loopCountInput.Value);
+        if (loopCount <= 0)
+            return workflow;
+
+        return workflow with
+        {
+            Arguments = workflow.Arguments
+                .Concat(["-Loops", loopCount.ToString(CultureInfo.InvariantCulture)])
+                .ToArray(),
+        };
     }
 
     private void LayoutActionButtons()
@@ -240,7 +288,7 @@ public sealed class MainWindow : Form
     }
 
     private static int ComputeClientHeight(int workflowCount) =>
-        104 + ComputePanelHeight(workflowCount) + Pad;
+        ActionPanelTop + ComputePanelHeight(workflowCount) + Pad;
 
     private static int ComputePanelHeight(int workflowCount)
     {

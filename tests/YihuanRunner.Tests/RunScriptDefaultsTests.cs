@@ -14,6 +14,17 @@ public sealed class RunScriptDefaultsTests
         Assert.Matches(new Regex(@"\[double\]\$HammerY\s*=\s*0\.4620\b"), script);
     }
 
+    [Fact]
+    public void RunScript_forwards_loop_count_to_runner()
+    {
+        string repoRoot = FindRepoRoot();
+        string script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "run-yihuan.ps1"));
+
+        Assert.Matches(new Regex(@"\[int\]\$Loops\s*=\s*0\b"), script);
+        Assert.Contains("--loops", script);
+        Assert.Contains("$Loops", script);
+    }
+
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

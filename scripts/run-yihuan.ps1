@@ -11,6 +11,7 @@ param(
     [int]$LoadingMs = 7000,
     [int]$MinMs = 250,
     [int]$MaxMs = 650,
+    [int]$Loops = 0,
     [string]$ClaimRegion = "0.50,0.72,0.22,0.12"
 )
 
@@ -35,16 +36,19 @@ $runnerArgs = @(
 if ($Probe) { $runnerArgs += "--probe" }
 if ($Once) { $runnerArgs += "--once" }
 if ($DryRun) { $runnerArgs += "--dry-run" }
+if ($Loops -gt 0) { $runnerArgs += @("--loops", $Loops) }
 if ($Snapshot) { $runnerArgs += @("--snapshot", $Snapshot) }
 
+[string[]]$argumentList = $runnerArgs | ForEach-Object { [string]$_ }
+
 if (Test-Path -LiteralPath $publishedRunner) {
-    & $publishedRunner @runnerArgs
-    exit $LASTEXITCODE
+    $runnerProcess = Start-Process -FilePath $publishedRunner -ArgumentList $argumentList -WindowStyle Hidden -Wait -PassThru
+    exit $runnerProcess.ExitCode
 }
 
 if (Test-Path -LiteralPath $legacyPublishedRunner) {
-    & $legacyPublishedRunner @runnerArgs
-    exit $LASTEXITCODE
+    $runnerProcess = Start-Process -FilePath $legacyPublishedRunner -ArgumentList $argumentList -WindowStyle Hidden -Wait -PassThru
+    exit $runnerProcess.ExitCode
 }
 
 dotnet run --project $project -- @runnerArgs

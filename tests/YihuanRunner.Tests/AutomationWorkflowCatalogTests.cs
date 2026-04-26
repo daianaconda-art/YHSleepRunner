@@ -13,10 +13,10 @@ public sealed class AutomationWorkflowCatalogTests
 
         Assert.Equal("store-special-2-8", workflow.Id);
         Assert.Equal("店长特供2-8", workflow.DisplayName);
-        Assert.Equal("powershell", workflow.FileName);
+        Assert.Equal("powershell.exe", workflow.FileName);
         Assert.Equal(repoRoot, workflow.WorkingDirectory);
         Assert.Equal(
-            ["-ExecutionPolicy", "Bypass", "-File", @".\scripts\run-yihuan.ps1"],
+            ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", @".\scripts\run-yihuan.ps1"],
             workflow.Arguments);
     }
 

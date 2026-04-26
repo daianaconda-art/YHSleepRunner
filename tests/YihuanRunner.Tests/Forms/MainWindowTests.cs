@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Reflection;
 using System.Windows.Forms;
 using YihuanRunner.Forms;
 using YihuanRunner.Workflows;
@@ -15,6 +16,7 @@ public sealed class MainWindowTests
             using var controller = new FakeAutomationWorkflowController();
             using var form = new MainWindow([SampleWorkflow()], controller);
             form.CreateControl();
+            form.Show();
 
             var buttons = form.Controls.Find("ActionButton", searchAllChildren: true).OfType<Button>().ToList();
 
@@ -53,6 +55,52 @@ public sealed class MainWindowTests
             Assert.True(form.ClientSize.Height >= 220);
             Assert.True(form.MinimumSize.Width >= 460);
             Assert.True(form.MinimumSize.Height >= 220);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_exposes_loop_count_input_defaulting_to_unlimited()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+
+            var loopCount = form.Controls.Find("LoopCountInput", searchAllChildren: true)
+                .OfType<NumericUpDown>()
+                .Single();
+
+            Assert.Equal(0, loopCount.Value);
+            Assert.Equal(0, loopCount.Minimum);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_forwards_loop_count_when_starting_workflow()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+
+            var loopCount = form.Controls.Find("LoopCountInput", searchAllChildren: true)
+                .OfType<NumericUpDown>()
+                .Single();
+            loopCount.Value = 3;
+
+            var startButton = form.Controls.Find("ActionButton", searchAllChildren: true)
+                .OfType<Button>()
+                .Single(button => button.Text == "店长特供2-8");
+
+            typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(startButton, [EventArgs.Empty]);
+
+            Assert.NotNull(controller.StartedWorkflow);
+            Assert.Equal(
+                ["-ExecutionPolicy", "Bypass", "-File", @".\scripts\run-yihuan.ps1", "-Loops", "3"],
+                controller.StartedWorkflow!.Arguments);
         });
     }
 
@@ -138,9 +186,11 @@ public sealed class MainWindowTests
 
         public AutomationWorkflowState State { get; private set; } = AutomationWorkflowState.Idle;
         public AutomationWorkflowDefinition? ActiveWorkflow { get; private set; }
+        public AutomationWorkflowDefinition? StartedWorkflow { get; private set; }
 
         public bool Start(AutomationWorkflowDefinition workflow)
         {
+            StartedWorkflow = workflow;
             ActiveWorkflow = workflow;
             SetState(AutomationWorkflowState.Running);
             ActivityChanged?.Invoke($"运行中: {workflow.DisplayName}");

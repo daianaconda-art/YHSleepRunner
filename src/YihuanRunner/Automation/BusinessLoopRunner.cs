@@ -23,8 +23,10 @@ public sealed class BusinessLoopRunner(
     {
         Console.WriteLine($"目标: process={options.ProcessName}, title~={options.TitleContains}");
         Console.WriteLine($"锤子: x={options.HammerPoint.X:F3}, y={options.HammerPoint.Y:F3}, duration={options.BusinessDuration.TotalSeconds:F0}s");
+        Console.WriteLine(options.LoopCount > 0 ? $"循环次数: 领取 {options.LoopCount} 次后停止" : "循环次数: 一直循环");
         Console.WriteLine("停止: 在这个控制台按 Ctrl+C");
         var entryRecoveryTracker = new EntryRecoveryTracker(requiredUnresolvedProbes: 2);
+        var claimCounter = new ClaimCompletionCounter(options.LoopCount);
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -64,6 +66,9 @@ public sealed class BusinessLoopRunner(
                     Console.WriteLine($"点击领取: {claimPoint.Value.X},{claimPoint.Value.Y}");
                     await mouseInput.ClickClientAsync(window.Handle, claimPoint.Value, _rng, jitterPixels: 3, cancellationToken);
                     await PressFAfterClaimAsync(window, cancellationToken);
+                    if (RecordClaimAndShouldStop(claimCounter))
+                        return 0;
+
                     continue;
                 }
 
@@ -124,7 +129,9 @@ public sealed class BusinessLoopRunner(
 
             await RunHammerPhase(window, cancellationToken);
 
-            await TryClaimRewardUntilStartReturns(window, cancellationToken);
+            bool claimed = await TryClaimRewardUntilStartReturns(window, cancellationToken);
+            if (claimed && RecordClaimAndShouldStop(claimCounter))
+                return 0;
 
             if (options.RunOnce)
                 return 0;
@@ -195,7 +202,7 @@ public sealed class BusinessLoopRunner(
         return point;
     }
 
-    private async Task TryClaimRewardUntilStartReturns(WindowInfo window, CancellationToken cancellationToken)
+    private async Task<bool> TryClaimRewardUntilStartReturns(WindowInfo window, CancellationToken cancellationToken)
     {
         DateTimeOffset deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(20);
         while (DateTimeOffset.UtcNow < deadline && !cancellationToken.IsCancellationRequested)
@@ -206,15 +213,31 @@ public sealed class BusinessLoopRunner(
                 Console.WriteLine($"点击领取: {claimPoint.Value.X},{claimPoint.Value.Y}");
                 await mouseInput.ClickClientAsync(window.Handle, claimPoint.Value, _rng, jitterPixels: 3, cancellationToken);
                 await PressFAfterClaimAsync(window, cancellationToken);
-                return;
+                return true;
             }
 
             ClientPoint? startPoint = await ProbeStartButton(window, cancellationToken, saveSnapshot: false);
             if (startPoint is not null)
-                return;
+                return false;
 
             await Task.Delay(1000, cancellationToken);
         }
+
+        return false;
+    }
+
+    private static bool RecordClaimAndShouldStop(ClaimCompletionCounter claimCounter)
+    {
+        bool shouldStop = claimCounter.RecordClaimAndShouldStop();
+        if (claimCounter.TargetClaims > 0)
+            Console.WriteLine($"领取计数: {claimCounter.CompletedClaims}/{claimCounter.TargetClaims}");
+        else
+            Console.WriteLine($"领取计数: {claimCounter.CompletedClaims}");
+
+        if (shouldStop)
+            Console.WriteLine("已达到指定领取次数，自动停止。");
+
+        return shouldStop;
     }
 
     private async Task PressFAfterClaimAsync(WindowInfo window, CancellationToken cancellationToken)

@@ -21,18 +21,7 @@ public sealed class ProcessAutomationWorkflowRunner : IAutomationWorkflowProcess
                 throw new InvalidOperationException("已有流程正在运行。");
         }
 
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = workflow.FileName,
-            WorkingDirectory = workflow.WorkingDirectory,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-
-        foreach (string argument in workflow.Arguments)
-            startInfo.ArgumentList.Add(argument);
+        var startInfo = BuildStartInfo(workflow);
 
         var process = new Process
         {
@@ -75,6 +64,24 @@ public sealed class ProcessAutomationWorkflowRunner : IAutomationWorkflowProcess
 
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
+    }
+
+    public static ProcessStartInfo BuildStartInfo(AutomationWorkflowDefinition workflow)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = workflow.FileName,
+            WorkingDirectory = workflow.WorkingDirectory,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+
+        foreach (string argument in workflow.Arguments)
+            startInfo.ArgumentList.Add(argument);
+
+        return startInfo;
     }
 
     public async Task StopAsync()

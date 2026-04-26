@@ -17,6 +17,7 @@ public sealed class RunnerOptionsTests
         Assert.Equal(new RelativePoint(0.0667, 0.4620), options.HammerPoint);
         Assert.Equal(250, options.MinHammerDelayMs);
         Assert.Equal(650, options.MaxHammerDelayMs);
+        Assert.Equal(0, options.LoopCount);
     }
 
     [Fact]
@@ -31,6 +32,7 @@ public sealed class RunnerOptionsTests
             "--loading-ms", "3000",
             "--min-ms", "111",
             "--max-ms", "222",
+            "--loops", "3",
             "--claim-region", "0.1,0.2,0.3,0.4",
             "--once",
             "--dry-run",
@@ -45,9 +47,16 @@ public sealed class RunnerOptionsTests
         Assert.Equal(TimeSpan.FromMilliseconds(3000), options.LoadingDelay);
         Assert.Equal(111, options.MinHammerDelayMs);
         Assert.Equal(222, options.MaxHammerDelayMs);
+        Assert.Equal(3, options.LoopCount);
         Assert.True(options.RunOnce);
         Assert.True(options.DryRun);
         Assert.Equal("probe.png", options.SnapshotPath);
+    }
+
+    [Fact]
+    public void Parse_rejects_negative_loop_count()
+    {
+        Assert.Throws<ArgumentException>(() => RunnerOptions.Parse(["--loops", "-1"]));
     }
 
     [Fact]

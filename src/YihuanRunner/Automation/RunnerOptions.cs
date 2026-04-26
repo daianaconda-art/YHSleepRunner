@@ -13,6 +13,7 @@ public sealed record RunnerOptions
     public TimeSpan BusinessDuration { get; init; } = TimeSpan.FromSeconds(45);
     public int MinHammerDelayMs { get; init; } = 250;
     public int MaxHammerDelayMs { get; init; } = 650;
+    public int LoopCount { get; init; }
     public bool RunOnce { get; init; }
     public bool DryRun { get; init; }
     public bool ProbeOnly { get; init; }
@@ -43,6 +44,7 @@ public sealed record RunnerOptions
           --loading-ms <ms>         点开始后等待 loading 的时间，默认 7000
           --min-ms <ms>             点击最小随机间隔，默认 250
           --max-ms <ms>             点击最大随机间隔，默认 650
+          --loops <count>           领取成功次数，0 表示一直循环
           --start-region x,y,w,h    入口 OCR 区域，默认 0.78,0.88,0.20,0.12
           --claim-region x,y,w,h    结算领取 OCR 区域，默认 0.50,0.72,0.22,0.12
         """;
@@ -96,6 +98,9 @@ public sealed record RunnerOptions
                 case "--max-ms":
                     options = options with { MaxHammerDelayMs = ParseInt(RequireValue(args, ref i, arg), arg) };
                     break;
+                case "--loops":
+                    options = options with { LoopCount = ParseNonNegativeInt(RequireValue(args, ref i, arg), arg) };
+                    break;
                 case "--start-region":
                     options = options with { StartButtonRegion = ParseRegion(RequireValue(args, ref i, arg), arg) };
                     break;
@@ -123,6 +128,15 @@ public sealed record RunnerOptions
     private static int ParseInt(string value, string name)
     {
         return int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture);
+    }
+
+    private static int ParseNonNegativeInt(string value, string name)
+    {
+        int parsed = ParseInt(value, name);
+        if (parsed < 0)
+            throw new ArgumentException($"{name} 不能小于 0");
+
+        return parsed;
     }
 
     private static double ParseDouble(string value, string name)

@@ -1,4 +1,3 @@
-using System.Text;
 using System.Windows.Forms;
 using YihuanRunner.Automation;
 using YihuanRunner.Forms;
@@ -12,7 +11,7 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
-        Console.OutputEncoding = Encoding.UTF8;
+        ConsoleOutput.TryConfigureUtf8();
 
         if (AppStartupModeResolver.Resolve(args) == AppStartupMode.Ui)
         {

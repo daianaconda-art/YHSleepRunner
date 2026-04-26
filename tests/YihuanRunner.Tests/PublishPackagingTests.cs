@@ -14,6 +14,15 @@ public sealed class PublishPackagingTests
     }
 
     [Fact]
+    public void Project_uses_windows_executable_subsystem_to_avoid_console_frame()
+    {
+        string repoRoot = FindRepoRoot();
+        string project = File.ReadAllText(Path.Combine(repoRoot, "src", "YihuanRunner", "YihuanRunner.csproj"));
+
+        Assert.Contains("<OutputType>WinExe</OutputType>", project);
+    }
+
+    [Fact]
     public void RunScript_prefers_packaged_executable_before_dotnet_run()
     {
         string repoRoot = FindRepoRoot();
@@ -21,7 +30,12 @@ public sealed class PublishPackagingTests
 
         Assert.Contains("\"YHSleepRunner.exe\"", script);
         Assert.Matches(new Regex(@"Test-Path\s+-LiteralPath\s+\$publishedRunner"), script);
-        Assert.Matches(new Regex(@"&\s+\$publishedRunner\s+@runnerArgs"), script);
+        Assert.Contains("Start-Process", script);
+        Assert.Contains("[string[]]$argumentList", script);
+        Assert.Contains("-WindowStyle Hidden", script);
+        Assert.Contains("-Wait", script);
+        Assert.Contains("-PassThru", script);
+        Assert.Contains("exit $runnerProcess.ExitCode", script);
         Assert.Matches(new Regex(@"dotnet\s+run\s+--project\s+\$project\s+--\s+@runnerArgs"), script);
     }
 

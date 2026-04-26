@@ -7,8 +7,8 @@ public static class AutomationWorkflowCatalog
         new AutomationWorkflowDefinition(
             Id: "store-special-2-8",
             DisplayName: "店长特供2-8",
-            FileName: "powershell",
-            Arguments: ["-ExecutionPolicy", "Bypass", "-File", @".\scripts\run-yihuan.ps1"],
+            FileName: "powershell.exe",
+            Arguments: ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", @".\scripts\run-yihuan.ps1"],
             WorkingDirectory: repositoryRoot),
     ];
 }
