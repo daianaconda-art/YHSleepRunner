@@ -48,6 +48,7 @@ public sealed class MainWindow : Form
         MinimizeBox = true;
         MinimumSize = new Size(MinimumWindowWidth, MinimumWindowHeight);
         ClientSize = new Size(DefaultClientWidth, Math.Max(DefaultClientHeight, ComputeClientHeight(_workflows.Count)));
+        KeyPreview = true;
         BackColor = RunnerTheme.Bg;
         ForeColor = RunnerTheme.TextPrimary;
         Font = RunnerTheme.BodyFont();
@@ -143,7 +144,7 @@ public sealed class MainWindow : Form
         _stopButton = new RoundedButton
         {
             Name = "ActionButton",
-            Text = "停止",
+            Text = "停止  Alt+Q",
             Variant = RoundedButton.ButtonVariant.Secondary,
             Icon = RoundedButton.LeadingIcon.Stop,
             AccentColor = RunnerTheme.Danger,
@@ -185,6 +186,19 @@ public sealed class MainWindow : Form
     {
         _controller.Dispose();
         base.OnFormClosing(e);
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == (Keys.Alt | Keys.Q))
+        {
+            if (_controller.State == AutomationWorkflowState.Running)
+                _ = StopWorkflowAsync();
+
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private void OnWorkflowButtonClick(object? sender, EventArgs eventArgs)

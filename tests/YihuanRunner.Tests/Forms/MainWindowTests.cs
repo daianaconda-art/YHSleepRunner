@@ -22,7 +22,7 @@ public sealed class MainWindowTests
 
             Assert.Equal(2, buttons.Count);
             Assert.Contains(buttons, button => button.Text == "店长特供2-8");
-            Assert.Contains(buttons, button => button.Text == "停止");
+            Assert.Contains(buttons, button => button.Text.Contains("停止"));
         });
     }
 
@@ -135,13 +135,49 @@ public sealed class MainWindowTests
 
             var stop = form.Controls.Find("ActionButton", searchAllChildren: true)
                 .OfType<Button>()
-                .Single(button => button.Text == "停止");
+                .Single(button => button.Text.Contains("停止"));
 
             Assert.False(stop.Enabled);
 
             controller.SetState(AutomationWorkflowState.Running);
 
             Assert.True(stop.Enabled);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_labels_stop_shortcut()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+
+            var stop = form.Controls.Find("ActionButton", searchAllChildren: true)
+                .OfType<Button>()
+                .Single(button => button.Text.Contains("停止"));
+
+            Assert.Contains("Alt+Q", stop.Text);
+            Assert.True(form.KeyPreview);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_alt_q_stops_running_workflow()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+            controller.SetState(AutomationWorkflowState.Running);
+
+            var handled = InvokeProcessCmdKey(form, Keys.Alt | Keys.Q);
+
+            Assert.True(handled);
+            Assert.Equal(1, controller.StopCount);
+            Assert.Equal(AutomationWorkflowState.Stopped, controller.State);
         });
     }
 
@@ -161,7 +197,7 @@ public sealed class MainWindowTests
 
             var buttons = form.Controls.Find("ActionButton", searchAllChildren: true)
                 .OfType<Button>()
-                .Where(button => button.Text != "停止")
+                .Where(button => !button.Text.Contains("停止"))
                 .OrderBy(button => button.Top)
                 .ToList();
 
@@ -187,6 +223,7 @@ public sealed class MainWindowTests
         public AutomationWorkflowState State { get; private set; } = AutomationWorkflowState.Idle;
         public AutomationWorkflowDefinition? ActiveWorkflow { get; private set; }
         public AutomationWorkflowDefinition? StartedWorkflow { get; private set; }
+        public int StopCount { get; private set; }
 
         public bool Start(AutomationWorkflowDefinition workflow)
         {
@@ -199,6 +236,7 @@ public sealed class MainWindowTests
 
         public Task StopAsync()
         {
+            StopCount++;
             ActiveWorkflow = null;
             SetState(AutomationWorkflowState.Stopped);
             return Task.CompletedTask;
@@ -213,5 +251,16 @@ public sealed class MainWindowTests
         public void Dispose()
         {
         }
+    }
+
+    private static bool InvokeProcessCmdKey(Form form, Keys keyData)
+    {
+        MethodInfo processCmdKey = typeof(Form).GetMethod(
+            "ProcessCmdKey",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("ProcessCmdKey not found.");
+
+        object?[] args = [new Message(), keyData];
+        return (bool)processCmdKey.Invoke(form, args)!;
     }
 }
