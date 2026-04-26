@@ -6,13 +6,19 @@ namespace YihuanRunner.Forms;
 
 public sealed class MainWindow : Form
 {
-    private const int Pad = 18;
-    private const int ButtonHeight = 46;
-    private const int ButtonGap = 10;
+    private const int DefaultClientWidth = 540;
+    private const int DefaultClientHeight = 240;
+    private const int MinimumWindowWidth = 460;
+    private const int MinimumWindowHeight = 220;
+    private const int Pad = 24;
+    private const int ButtonHeight = 54;
+    private const int ButtonGap = 12;
 
     private readonly IReadOnlyList<AutomationWorkflowDefinition> _workflows;
     private readonly IAutomationWorkflowController _controller;
+    private readonly Label _titleLabel;
     private readonly Label _statusLabel;
+    private readonly Panel _actionPanel;
     private readonly List<RoundedButton> _workflowButtons = [];
     private readonly RoundedButton _stopButton;
 
@@ -32,24 +38,26 @@ public sealed class MainWindow : Form
 
         Text = "YHSleepRunner";
         StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MaximizeBox = true;
         MinimizeBox = true;
-        ClientSize = new Size(390, ComputeClientHeight(_workflows.Count));
+        MinimumSize = new Size(MinimumWindowWidth, MinimumWindowHeight);
+        ClientSize = new Size(DefaultClientWidth, Math.Max(DefaultClientHeight, ComputeClientHeight(_workflows.Count)));
         BackColor = RunnerTheme.Bg;
         ForeColor = RunnerTheme.TextPrimary;
         Font = RunnerTheme.BodyFont();
 
-        var title = new Label
+        _titleLabel = new Label
         {
             AutoSize = false,
             Text = "YHSleepRunner",
-            Font = RunnerTheme.BoldFont(15F),
+            Font = RunnerTheme.BoldFont(17F),
             ForeColor = RunnerTheme.TextPrimary,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleLeft,
-            Location = new Point(Pad, 14),
-            Size = new Size(ClientSize.Width - Pad * 2, 30),
+            Location = new Point(Pad, 18),
+            Size = new Size(ClientSize.Width - Pad * 2, 34),
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
 
         _statusLabel = new Label
@@ -60,20 +68,22 @@ public sealed class MainWindow : Form
             ForeColor = RunnerTheme.TextSecondary,
             BackColor = Color.Transparent,
             TextAlign = ContentAlignment.MiddleLeft,
-            Location = new Point(Pad, 48),
-            Size = new Size(ClientSize.Width - Pad * 2, 24),
+            Location = new Point(Pad, 58),
+            Size = new Size(ClientSize.Width - Pad * 2, 26),
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
 
-        var panel = new Panel
+        _actionPanel = new Panel
         {
             BackColor = RunnerTheme.Panel,
-            Location = new Point(Pad, 86),
+            Location = new Point(Pad, 104),
             Size = new Size(ClientSize.Width - Pad * 2, ComputePanelHeight(_workflows.Count)),
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
         };
-        panel.Paint += (_, eventArgs) =>
+        _actionPanel.Paint += (_, eventArgs) =>
         {
             eventArgs.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            using var path = RunnerTheme.BuildRoundedPath(new Rectangle(0, 0, panel.Width, panel.Height), 12);
+            using var path = RunnerTheme.BuildRoundedPath(new Rectangle(0, 0, _actionPanel.Width, _actionPanel.Height), 12);
             using var fill = new SolidBrush(RunnerTheme.Panel);
             using var border = new Pen(RunnerTheme.Border, 1);
             eventArgs.Graphics.FillPath(fill, path);
@@ -96,7 +106,7 @@ public sealed class MainWindow : Form
             };
             button.Click += OnWorkflowButtonClick;
             _workflowButtons.Add(button);
-            panel.Controls.Add(button);
+            _actionPanel.Controls.Add(button);
         }
 
         _stopButton = new RoundedButton
@@ -111,16 +121,31 @@ public sealed class MainWindow : Form
             Height = ButtonHeight,
         };
         _stopButton.Click += async (_, _) => await StopWorkflowAsync();
-        panel.Controls.Add(_stopButton);
+        _actionPanel.Controls.Add(_stopButton);
 
-        Controls.Add(title);
+        Controls.Add(_titleLabel);
         Controls.Add(_statusLabel);
-        Controls.Add(panel);
+        Controls.Add(_actionPanel);
 
         _controller.StateChanged += OnControllerStateChanged;
         _controller.ActivityChanged += OnActivityChanged;
-        LayoutActionButtons(panel);
+        LayoutActionButtons();
         ApplyState(_controller.State);
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+
+        if (_actionPanel is null)
+            return;
+
+        int contentWidth = Math.Max(1, ClientSize.Width - Pad * 2);
+        _titleLabel.Width = contentWidth;
+        _statusLabel.Width = contentWidth;
+        _actionPanel.Width = contentWidth;
+        LayoutActionButtons();
+        _actionPanel.Invalidate();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -188,7 +213,7 @@ public sealed class MainWindow : Form
         return text.Length <= 48 ? text : text[..48];
     }
 
-    private void LayoutActionButtons(Panel panel)
+    private void LayoutActionButtons()
     {
         if (_workflowButtons.Count == 0)
             return;
@@ -196,7 +221,7 @@ public sealed class MainWindow : Form
         int y = Pad / 2;
         if (_workflowButtons.Count == 1)
         {
-            int availableWidth = panel.Width - Pad * 2 - ButtonGap;
+            int availableWidth = _actionPanel.Width - Pad * 2 - ButtonGap;
             int startWidth = (int)(availableWidth * 0.62);
             int stopWidth = availableWidth - startWidth;
             _workflowButtons[0].SetBounds(Pad, y, startWidth, ButtonHeight);
@@ -204,7 +229,7 @@ public sealed class MainWindow : Form
             return;
         }
 
-        int fullWidth = panel.Width - Pad * 2;
+        int fullWidth = _actionPanel.Width - Pad * 2;
         foreach (RoundedButton button in _workflowButtons)
         {
             button.SetBounds(Pad, y, fullWidth, ButtonHeight);
@@ -215,7 +240,7 @@ public sealed class MainWindow : Form
     }
 
     private static int ComputeClientHeight(int workflowCount) =>
-        86 + ComputePanelHeight(workflowCount) + Pad;
+        104 + ComputePanelHeight(workflowCount) + Pad;
 
     private static int ComputePanelHeight(int workflowCount)
     {

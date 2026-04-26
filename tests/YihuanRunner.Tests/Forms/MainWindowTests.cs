@@ -39,6 +39,44 @@ public sealed class MainWindowTests
     }
 
     [Fact]
+    public void MainWindow_uses_roomier_resizable_shell()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+
+            Assert.Equal(FormBorderStyle.Sizable, form.FormBorderStyle);
+            Assert.True(form.MaximizeBox);
+            Assert.True(form.ClientSize.Width >= 500);
+            Assert.True(form.ClientSize.Height >= 220);
+            Assert.True(form.MinimumSize.Width >= 460);
+            Assert.True(form.MinimumSize.Height >= 220);
+        });
+    }
+
+    [Fact]
+    public void MainWindow_reflows_action_buttons_when_resized()
+    {
+        WinFormsTestHost.Run(() =>
+        {
+            using var controller = new FakeAutomationWorkflowController();
+            using var form = new MainWindow([SampleWorkflow()], controller);
+            form.CreateControl();
+
+            var start = form.Controls.Find("ActionButton", searchAllChildren: true)
+                .OfType<Button>()
+                .Single(button => button.Text == "店长特供2-8");
+            int originalWidth = start.Width;
+
+            form.ClientSize = new Size(form.ClientSize.Width + 180, form.ClientSize.Height + 80);
+
+            Assert.True(start.Width > originalWidth);
+        });
+    }
+
+    [Fact]
     public void MainWindow_disables_stop_until_a_workflow_is_running()
     {
         WinFormsTestHost.Run(() =>
