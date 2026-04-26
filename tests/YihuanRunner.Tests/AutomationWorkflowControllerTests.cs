@@ -65,6 +65,21 @@ public sealed class AutomationWorkflowControllerTests
         Assert.Null(controller.ActiveWorkflow);
     }
 
+    [Fact]
+    public void Runner_exit_code_3_reports_permission_guidance()
+    {
+        var runner = new FakeWorkflowProcessRunner();
+        using var controller = new AutomationWorkflowController(runner);
+        var activities = new List<string>();
+        controller.ActivityChanged += activities.Add;
+
+        controller.Start(SampleWorkflow());
+        runner.RaiseExited(3);
+
+        Assert.Equal(AutomationWorkflowState.Failed, controller.State);
+        Assert.Contains(activities, message => message.Contains("权限不足") && message.Contains("管理员"));
+    }
+
     private static AutomationWorkflowDefinition SampleWorkflow() =>
         new(
             Id: "store-special-2-8",

@@ -59,6 +59,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-yihuan.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\run-yihuan.ps1 -HammerX 0.0667 -HammerY 0.4620
 ```
 
+## 常见问题
+
+### 流程退出，错误码 3
+
+这通常表示 Windows 权限隔离拦截输入：启动器权限低于目标窗口权限。请尝试以下任一方式：
+
+- 右键 `YHSleepRunner.exe`，选择“以管理员身份运行”。
+- 或者用普通权限启动目标窗口，保持两边权限一致。
+
 ## 设计说明
 
 - `Program` 负责入口分流：无参数或 `--ui` 打开界面；带自动化参数时保留原命令行 OCR 流程。

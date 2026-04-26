@@ -104,7 +104,7 @@ public sealed class AutomationWorkflowController : IAutomationWorkflowController
                 : AutomationWorkflowState.Failed);
         }
 
-        ActivityChanged?.Invoke(exitCode is 0 or null ? "已停止" : $"流程退出: {exitCode}");
+        ActivityChanged?.Invoke(CreateExitActivity(exitCode));
     }
 
     private void OnRunnerOutputReceived(string line)
@@ -125,6 +125,16 @@ public sealed class AutomationWorkflowController : IAutomationWorkflowController
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    private static string CreateExitActivity(int? exitCode)
+    {
+        return exitCode switch
+        {
+            0 or null => "已停止",
+            3 => "权限不足: 请右键以管理员身份运行启动器，或用普通权限启动目标窗口。",
+            _ => $"流程退出: {exitCode}",
+        };
     }
 
     public void Dispose()
