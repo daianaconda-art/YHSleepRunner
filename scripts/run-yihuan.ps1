@@ -17,6 +17,8 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $repoRoot "src\YihuanRunner\YihuanRunner.csproj"
+$publishedRunner = Join-Path $repoRoot "YHSleepRunner.exe"
+$legacyPublishedRunner = Join-Path $repoRoot "YihuanRunner.exe"
 
 $runnerArgs = @(
     "--process", $Process,
@@ -34,6 +36,16 @@ if ($Probe) { $runnerArgs += "--probe" }
 if ($Once) { $runnerArgs += "--once" }
 if ($DryRun) { $runnerArgs += "--dry-run" }
 if ($Snapshot) { $runnerArgs += @("--snapshot", $Snapshot) }
+
+if (Test-Path -LiteralPath $publishedRunner) {
+    & $publishedRunner @runnerArgs
+    exit $LASTEXITCODE
+}
+
+if (Test-Path -LiteralPath $legacyPublishedRunner) {
+    & $legacyPublishedRunner @runnerArgs
+    exit $LASTEXITCODE
+}
 
 dotnet run --project $project -- @runnerArgs
 exit $LASTEXITCODE

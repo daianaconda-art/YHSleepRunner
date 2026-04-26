@@ -4,3 +4,5 @@ obj/
 *.png
 *.log
 artifacts/
+dist/
+publish/

@@ -21,9 +21,9 @@ public sealed record RunnerOptions
 
     public static string Usage =>
         """
-        YihuanRunner - 异环营业循环脚本
+        YHSleepRunner - 本地 OCR 自动化启动器
 
-        默认会寻找 HTGame / 标题包含“异环”的窗口，OCR 右下角“开始营业”，点击后等待 loading，再随机点击左侧锤子 45 秒并循环。
+        默认会寻找目标窗口，OCR 指定区域内的入口文本，点击后等待 loading，再按配置执行循环输入。
 
         常用:
           dotnet run --project .\src\YihuanRunner -- --probe --snapshot probe.png
@@ -31,19 +31,19 @@ public sealed record RunnerOptions
           dotnet run --project .\src\YihuanRunner --
 
         参数:
-          --process <name>          目标进程名，默认 HTGame
-          --title <text>            窗口标题包含文本，默认 异环
+          --process <name>          目标进程名
+          --title <text>            窗口标题包含文本
           --probe                   只截图和 OCR，不点击
           --once                    只执行一次营业流程
           --dry-run                 打印将要点击的位置，不实际点击
           --snapshot <path>         保存本次屏幕截图
-          --hammer-x <pct>          锤子点击点 X 百分比，默认 0.12
-          --hammer-y <pct>          锤子点击点 Y 百分比，默认 0.50
+          --hammer-x <pct>          点击点 X 百分比，默认 0.0667
+          --hammer-y <pct>          点击点 Y 百分比，默认 0.4620
           --duration-sec <seconds>  营业点击持续时间，默认 45
           --loading-ms <ms>         点开始后等待 loading 的时间，默认 7000
-          --min-ms <ms>             锤子点击最小随机间隔，默认 250
-          --max-ms <ms>             锤子点击最大随机间隔，默认 650
-          --start-region x,y,w,h    开始营业 OCR 区域，默认 0.62,0.70,0.35,0.25
+          --min-ms <ms>             点击最小随机间隔，默认 250
+          --max-ms <ms>             点击最大随机间隔，默认 650
+          --start-region x,y,w,h    入口 OCR 区域，默认 0.78,0.88,0.20,0.12
           --claim-region x,y,w,h    结算领取 OCR 区域，默认 0.50,0.72,0.22,0.12
         """;
 

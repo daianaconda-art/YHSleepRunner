@@ -9,6 +9,12 @@
 
 ## 快速使用
 
+下载打包版：
+
+1. 打开 GitHub 仓库的 Releases 页面。
+2. 下载 `YHSleepRunner-win-x64.zip`。
+3. 解压后运行 `YHSleepRunner.exe`。
+
 打开界面：
 
 ```powershell

@@ -49,4 +49,13 @@ public sealed class RunnerOptionsTests
         Assert.True(options.DryRun);
         Assert.Equal("probe.png", options.SnapshotPath);
     }
+
+    [Fact]
+    public void Usage_uses_generic_public_copy()
+    {
+        Assert.DoesNotContain("异环", RunnerOptions.Usage);
+        Assert.DoesNotContain("HTGame", RunnerOptions.Usage);
+        Assert.Contains("YHSleepRunner", RunnerOptions.Usage);
+        Assert.Contains("OCR", RunnerOptions.Usage);
+    }
 }

@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        shell: pwsh
+        run: dotnet test YihuanRunner.sln --configuration Release
+
+      - name: Publish
+        shell: pwsh
+        run: >
+          dotnet publish src/YihuanRunner/YihuanRunner.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:EnableCompressionInSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          --output publish/win-x64
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $packageRoot = "dist/YHSleepRunner"
+          New-Item -ItemType Directory -Force $packageRoot | Out-Null
+          Copy-Item "publish/win-x64/YHSleepRunner.exe" "$packageRoot/YHSleepRunner.exe"
+          Copy-Item "scripts" "$packageRoot/scripts" -Recurse
+          Copy-Item "README.md" "$packageRoot/README.md"
+          Compress-Archive -Path "$packageRoot/*" -DestinationPath "dist/YHSleepRunner-win-x64.zip" -Force
+
+      - name: Upload release asset
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          $asset = "dist/YHSleepRunner-win-x64.zip"
+          if (gh release view $env:TAG_NAME --repo $env:REPO 2>$null) {
+            gh release upload $env:TAG_NAME $asset --repo $env:REPO --clobber
+          } else {
+            gh release create $env:TAG_NAME $asset --repo $env:REPO --title $env:TAG_NAME --notes "Windows x64 self-contained package."
+          }
